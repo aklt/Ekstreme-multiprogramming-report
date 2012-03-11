@@ -1,0 +1,26 @@
+#INCLUDE "test-utils.occ"
+
+VAL BITS IS 5:
+
+PROC test.mux(CHAN BYTE kyb?, scr!)
+  INITIAL INT n IS BITS:
+  [BITS]CHAN BOOL chan:
+  CHAN BOOL out:
+  BOOL b:
+  PAR
+    get.input(n, kyb?, chan)
+    multiplexer(chan[0]?, chan[1]?, chan[2]?, chan[3]?, chan[4]?, out!)
+    SEQ
+      out ? b
+      out.bit(b, scr!)
+      out.string("*n", 0, scr!)
+:
+
+PROC main.test.mux(CHAN BYTE kyb?, scr!)
+  INITIAL INT n IS 32: -- A cheat: There are 32 possible input combinations
+  WHILE n > 0
+    SEQ
+      n := n - 1
+      test.mux(kyb?, scr!)
+:
+

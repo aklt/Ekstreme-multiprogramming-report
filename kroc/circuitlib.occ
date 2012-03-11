@@ -1,0 +1,153 @@
+
+#INCLUDE "filelib.inc"
+
+#USE "course.lib"
+#USE "file.lib"
+
+VAL BITS IS 4: -- This is the amount of wires connected
+
+PROC not(CHAN BOOL in?, out!)
+  BOOL got:
+  SEQ
+    in ? got
+    PAR
+      out ! (NOT got)
+:
+
+PROC and(CHAN BOOL in0?, in1?, out!)
+  BOOL got0, got1:
+  SEQ
+    PAR
+      in0 ? got0
+      in1 ? got1
+    out ! (got0 AND got1)
+:
+
+PROC or(CHAN BOOL in0?, in1?, out!)
+  BOOL got0, got1:
+  SEQ
+    PAR
+      in0 ? got0
+      in1 ? got1
+    out ! (got0 OR got1)
+:
+
+PROC xor(CHAN BOOL in0?, in1?, out!)
+  BOOL got0, got1:
+  SEQ
+    PAR
+      in0 ? got0
+      in1 ? got1
+    out ! ((got0 AND (NOT got1)) OR (got1 AND (NOT got0)))
+:
+
+-- This is a convenience.  It emulates a split in the wire by propagates
+-- the input to the two out channels.
+PROC fork(CHAN BOOL in?, out0!, out1!)
+  BOOL got:
+  SEQ
+    in ? got
+    PAR
+      out0 ! got
+      out1 ! got
+:
+
+-- A full adder
+-- This will be put together to form a larger adder
+-- Goal: instantiate as few variables as possible
+PROC fulladder(CHAN BOOL in0?, in1?, cin?, sum!, cout!)
+  BOOL a:
+  BOOL b:
+  BOOL c:
+
+  -- inputs
+  [2]CHAN BOOL x0: -- xor gate 0 
+  [2]CHAN BOOL x1: -- xor gate 1 
+  [2]CHAN BOOL a0: -- and gate 0
+  [2]CHAN BOOL a1: -- and gate 1
+  [2]CHAN BOOL o0: -- the or gate
+  
+  CHAN BOOL f0:    -- a fork.  The other forks are done manually
+
+  SEQ -- We cannot read and assign to a var in parralell
+    -- Get input
+    in0 ? a
+    in1 ? b
+    cin ? c
+
+    PAR
+      -- Send input down the channels
+      x0[0] ! a
+      x0[1] ! b
+
+      a1[0] ! a
+      a1[1] ! b
+
+      x1[1] ! c
+      a0[0] ! c
+
+      -- The internal wiring
+      xor(x0[0]?, x0[1]?, f0!)    -- x0
+      fork(f0?, x1[0]!, a0[1]!)   -- f0
+      and(a0[0]?, a0[1]?, o0[0]!) -- a0
+      and(a1[0]?, a1[1]?, o0[1]!) -- a1
+      xor(x1[0]?, x1[1]?, sum!)   -- x1
+      or(o0[0]?, o0[1]?, cout!)   -- o0
+:
+
+PROC ripple.carry.adder([]CHAN BOOL a?, b?, sum!, CHAN BOOL cin?, cout!)
+  [3]CHAN BOOL f:
+  PAR -- The adders have to wait for the carry so there is no great concurrency here
+    fulladder(a[0]?, b[0]?, cin?, sum[0]!, f[0]!)
+    PAR i = 1 FOR (BITS - 2)  
+      fulladder(a[i]?, b[i]?, f[i-1]?, sum[i]!, f[i]!)
+    fulladder(a[BITS-1]?, b[BITS-1]?, f[BITS-2]?, sum[BITS-1]!, cout!)
+:
+
+ --This is a 3 - 1 multiplexer.  The control bits s0=1, s1=1 are don't cares 
+PROC multiplexer(CHAN BOOL i0?, i1?, i2?, s0?, s1?, out!)
+  CHAN BOOL n0, n1, n2, n3:            -- not gates 
+  [2]CHAN BOOL a0, a1, a2, a3, a4, a5: -- and gates
+  [2]CHAN BOOL o0, o1:                 -- or gates
+
+  BOOL in0, in1, in2, st0, st1:
+  
+  SEQ -- Get input
+    i0 ? in0
+    i1 ? in1
+    i2 ? in2
+
+    s0 ? st0
+    s1 ? st1
+
+    PAR
+      -- Pass on the input
+      a0[0] ! in0
+      a2[0] ! in1
+      a2[1] ! st0
+      a4[0] ! in2
+      a5[0] ! st1
+
+      n0 ! st0
+      n1 ! st1
+      n2 ! st1
+      n3 ! st0
+
+      -- Wire the gates
+      not(n0?, a0[1]!)
+      not(n1?, a1[1]!)
+      not(n2?, a3[0]!)
+      not(n3?, a4[1]!)
+
+      and(a0[0]?, a0[1]?, a1[0]!)
+      and(a1[0]?, a1[1]?, o1[0]!)
+      and(a2[0]?, a2[1]?, a3[1]!)
+      and(a3[0]?, a3[1]?, o0[0]!)
+      and(a4[0]?, a4[1]?, a5[1]!)
+      and(a5[0]?, a5[1]?, o0[1]!)
+
+      or(o0[0]?, o0[1]?, o1[1]!)
+      or(o1[0]?, o1[1]?, out!)
+:
+
+

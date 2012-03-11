@@ -1,0 +1,68 @@
+#INCLUDE "circuitlib.occ"
+#INCLUDE "consts.inc"
+
+VAL BUFSZ IS 10:
+
+PROC get.input.array(INT n, CHAN BYTE in?, []BYTE out)
+  INT bitcount:
+  BYTE b:
+  SEQ
+    bitcount := 0
+    WHILE bitcount < n
+      SEQ
+        in ? b 
+        IF
+          (b = '0') OR (b = '1')
+            SEQ
+              out[bitcount] := b
+              bitcount := bitcount + 1
+          TRUE
+            SKIP
+:
+
+PROC show.boolarray(INT n, []BYTE str, []CHAN BOOL out!)
+  BYTE b:
+  PAR
+    PAR j = 0 FOR n
+      SEQ
+        b := str[j]
+        CASE str[j]
+          '0'
+            out[j] ! FALSE
+          '1'  
+            out[j] ! TRUE
+:
+
+-- read n bytes on channel in and output them in paralell on out
+PROC get.input(INT n, CHAN BYTE in?, []CHAN BOOL out!)
+  [BUFSZ]BYTE array:
+  SEQ
+    get.input.array(n, in?, array)
+    show.boolarray(n, array, out!)
+:
+
+-- read a file and sent the bytes down channel out.
+-- TODO : Why can I not use this instead of the keyboard input from std. in? is it a KRoC bug?
+PROC readfile(CHAN BYTE out!)
+  [14]BYTE filename: 
+  [8000]BYTE file.contents:
+  INT file.length:
+  INT fd:
+  SEQ
+    filename := "data.adder.tmp"
+    file.open(filename, O.RDONLY, fd)
+    file.read(fd, file.contents, file.length)
+    SEQ i = 0 FOR file.length
+      out ! file.contents[i]
+:
+
+PROC out.bit(BOOL b, CHAN BYTE out!)
+  CASE b
+    TRUE
+      out ! '1'
+    FALSE
+      out ! '0'
+    ELSE
+      SKIP
+:
+

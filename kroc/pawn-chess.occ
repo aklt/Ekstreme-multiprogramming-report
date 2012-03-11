@@ -1,0 +1,611 @@
+#INCLUDE "consts.inc"
+#USE "course.lib"
+
+VAL INT depth IS 7:          -- This must be an even number because we are dealing with ply depth
+VAL randomly.pick IS FALSE:  -- Set to true to randomly pick among several moves of the same utility
+--VAL randomly.pick IS TRUE: -- Set to true to randomly pick among several moves of the same utility
+VAL DEBUG IS FALSE:          -- Set to true to also show the minimax result and the internal representation of the board
+
+
+--- do not change --- 
+VAL INT maxbranch IS 24:     -- The highest and very unlikely max amount of possible next moves
+VAL DEAD IS 9:               -- Value assigned to a pawns coordinates if it dies           
+
+-- {{{1 DATA TYPEs
+DATA TYPE Pawn
+  RECORD
+    INT  x :
+    INT  y :
+    BOOL e :
+:
+
+DATA TYPE Player
+  RECORD
+    [8] Pawn pawns:
+    INT len: -- Amount pawns left
+:
+
+DATA TYPE Board
+  RECORD
+    [2] Player players:
+    INT val:   -- Some value :-)
+    BOOL ok:   -- set to false to mark the end of a list
+:
+
+-- The convention is to write all tags with upper case
+
+PROTOCOL PBOARD
+  CASE
+    BOARD; Board; INT; INT; INT -- Board, player, alpha, beta
+    POISON
+:--1}}}
+
+--{{{1 sorting and randomization
+-- TODO : Use insertion sort instead, it is much faster
+PROC bubblesort([]Pawn p, VAL INT len)
+  Pawn tmp:
+  INITIAL BOOL run IS TRUE:
+  WHILE run
+    SEQ
+      run := FALSE
+      SEQ i = 0 FOR len - 1
+        IF
+          (p[i][y] > p[i+1][y]) OR ((p[i][y] = p[i+1][y]) AND (p[i][x] > p[i+1][x]))
+            SEQ
+              tmp := p[i]
+              p[i] := p[i+1]
+              p[i+1] := tmp
+              run := TRUE
+          TRUE
+            SKIP
+:
+
+PROC rand(INT upto, randval)
+  INT t, seed:
+  TIMER tim:
+  SEQ
+    tim ? t
+    seed := ((t /\ #7FFFFFFF) >> 1) + 1
+    randval, seed := random(upto, seed)
+:--1}}}
+
+-- {{{1 Constructing and showing
+Pawn FUNCTION pawn.new(VAL INT x, VAL INT y, VAL BOOL e)
+  Pawn p:
+  VALOF
+    SEQ
+      p[x] := x
+      p[y] := y
+      p[e] := e
+    RESULT p
+:
+
+PROC pawn.show(Pawn p, CHAN BYTE scr!)
+  SEQ
+    out.string("(", 0, scr!)
+    out.int(p[x], 0, scr!)
+    out.string(", ", 0, scr!)
+    out.int(p[y], 0, scr!)
+    out.string(", ", 0, scr!)
+    out.bool(p[e], 0, scr!)
+    out.string(")", 0, scr!)
+:
+
+Player FUNCTION player.new(VAL INT row)
+  Player p:
+  VALOF
+    SEQ
+      p[pawns] := [ i = 0 FOR 8 | pawn.new(i, row, FALSE) ]
+      p[len] := 8
+    RESULT p
+:
+
+PROC player.show(Player p, CHAN BYTE scr!)
+  SEQ
+    SEQ i = 0 FOR 7
+      SEQ
+        pawn.show(p[pawns][i], scr!)
+        out.string(", ", 0, scr!)
+    pawn.show(p[pawns][7], scr!)
+    out.string("*n", 0, scr!)
+:
+
+Board FUNCTION  board.new()
+  Board b:
+  VALOF
+    SEQ
+      b[players][0] := player.new(1)
+      b[players][1] := player.new(6)
+    RESULT b
+:
+
+PROC board.show.players(Board b, CHAN BYTE scr!)
+  SEQ
+    player.show(b[players][0], scr!)
+    player.show(b[players][1], scr!)
+:
+
+-- This requires that the list of pawns are sorted.
+PROC board.show(Board board, CHAN BYTE scr!)
+  INITIAL INT p0 IS 0:
+  INITIAL INT p1 IS 0:
+  INT len:
+  [1]BYTE print:
+
+  SEQ
+    len := board[players][0][len]
+    bubblesort(board[players][0][pawns], 8)
+    len := board[players][1][len]
+    bubblesort(board[players][1][pawns], 8)
+    SEQ i = 0 FOR 8
+      SEQ
+        out.int(8-i, 0, scr!)
+        SEQ j = 0 FOR 8
+          SEQ
+            out.string(" ", 0, scr!)
+            IF 
+              (p0 < 8) AND (board[players][0][pawns][p0][y] = i) AND (board[players][0][pawns][p0][x] = j)
+                SEQ
+                  print := "O"
+                  p0 := p0 + 1
+              (p1 < 8) AND (board[players][1][pawns][p1][y] = i) AND (board[players][1][pawns][p1][x] = j)
+                SEQ
+                  print := "X"
+                  p1 := p1 + 1
+              TRUE
+                print := " "
+            out.string(print, 0, scr!)
+        out.string("*n", 0, scr!)
+    out.string("  A B C D E F G H*n*n", 0, scr!)
+    CASE DEBUG
+      TRUE
+        SEQ
+          board.show.players(board, scr!)
+          out.string("Val: ", 0, scr!)
+          out.int(board[val], 0, scr!)
+          out.string("*n*n", 0, scr!)
+      ELSE
+        SKIP
+:
+
+PROC board.show.chan(CHAN Board cb?, CHAN BYTE out!)
+  Board b:
+  WHILE TRUE
+    SEQ
+      cb ? b
+      board.show(b, out!)
+:--1}}}
+
+--{{{1 Movement
+PROC board.find(Board board, INT idx, VAL INT color, x, y) -- Retrieve idx of pawn with color at coordinate x, y
+  INITIAL INT i IS 0:
+  INITIAL BOOL found IS FALSE:
+  SEQ
+    WHILE (i < 8) AND (board[players][color][pawns][i][y] < y)
+      i := i + 1
+    WHILE (NOT found) AND (i<8) AND (board[players][color][pawns][i][y] = y)
+      SEQ
+        IF
+          board[players][color][pawns][i][x] = x
+            SEQ
+              idx := i
+              found := TRUE
+          TRUE
+            SKIP
+        i := i + 1
+    IF
+      (NOT found)
+        idx := (-1)
+      TRUE
+        SKIP
+:
+
+PROC board.move.forward(Board board, BOOL did.move, VAL INT color, piece, amount)
+  INT dir, i, x, new.y, p0, p1, amount0:
+  INITIAL BOOL ok IS TRUE:
+  SEQ
+    IF
+      color = 0
+        dir := 1
+      TRUE
+        dir := (-1)
+    x     := board[players][color][pawns][piece][x]
+    new.y := board[players][color][pawns][piece][y]
+    -- Adjust if we are allowed to move 2 squares
+    amount0 := amount
+    CASE amount0
+      2
+        -- O can move 2 in col 1, X can move 2 in col 6
+        IF 
+          ((color=0) AND (new.y <> 1)) OR ((color=1) AND (new.y <> 6))
+            amount0 := 1
+          TRUE
+            SKIP
+      ELSE
+        SKIP
+    i := 0
+    -- Make sure we can go in this direction
+    WHILE ok AND (i < amount0) 
+      SEQ
+        new.y := new.y + dir
+        board.find(board, p0, 0, x, new.y)
+        board.find(board, p1, 1, x, new.y)
+        IF
+          (p0 <> (-1)) OR (p1 <> (-1))
+            ok := FALSE
+          TRUE
+            SKIP
+        i := i + 1
+    CASE ok
+      FALSE
+        did.move := FALSE
+      TRUE
+        SEQ
+          board[players][color][pawns][piece][y] := new.y
+          did.move := TRUE
+:
+
+PROC board.move.diagonal(Board board, BOOL did.move, VAL INT color, piece, side)
+  INT dir, other:
+  INT x, y, idx, len:
+  SEQ
+    CASE color 
+      0
+        SEQ
+          dir   := 1
+          other := 1
+      ELSE
+        SEQ
+          dir   := (-1)
+          other := 0
+
+    x := board[players][color][pawns][piece][x] + side 
+    y := board[players][color][pawns][piece][y] + dir
+    board.find(board, idx, other, x, y)
+    
+    CASE idx
+      (-1)
+        did.move := FALSE
+      ELSE  
+        SEQ
+          -- Make move
+          board[players][color][pawns][piece][x] := x
+          board[players][color][pawns][piece][y] := y
+          -- Kill other pawn
+          board[players][other][pawns][idx][x] := DEAD
+          board[players][other][pawns][idx][y] := DEAD
+          len := board[players][other][len]
+          bubblesort(board[players][other][pawns], 8)
+          board[players][other][len] := len - 1
+          did.move := TRUE
+:
+
+-- Generate all possible moves for one user using auxillary funcs above
+PROC board.moves(Board board, VAL INT color, []Board out)
+  BOOL did.move:
+  INITIAL Board copy IS board:
+  INITIAL INT idx IS 0:
+  SEQ
+    did.move := FALSE
+    board[ok] := TRUE
+    copy[ok] := TRUE
+    SEQ j = 0 FOR 8
+      SEQ
+        board.move.diagonal(board, did.move, color, j, -1)
+        IF
+          did.move
+            SEQ
+              out[idx] := board
+              idx := idx + 1
+              board := copy
+          TRUE
+            SKIP
+    SEQ k = 0 FOR 8
+      SEQ
+        board.move.diagonal(board, did.move, color, k, 1)
+        IF
+          did.move
+            SEQ
+              out[idx] := board
+              idx := idx + 1
+              board := copy
+          TRUE
+            SKIP
+    SEQ h = 1 FOR 2
+      SEQ i = 0 FOR 8
+        SEQ
+          board.move.forward(board, did.move, color, i, h)
+          IF
+            did.move
+              SEQ
+                out[idx] := board
+                idx := idx + 1
+                board := copy
+            TRUE
+              SKIP
+    board[ok] := FALSE
+    out[idx] := board
+:--1}}}
+
+--{{{1 Evaluation of board state
+PROC no.pawns.left(Player player, BOOL true)
+  INITIAL INT idx IS 0:
+  SEQ
+    true := FALSE
+    WHILE (idx < 8) AND (player[pawns][idx][y] = DEAD)
+      idx := idx + 1
+    CASE idx
+      8
+        true := TRUE
+      ELSE
+        SKIP
+:
+
+-- If there is a winner, it's color will be in color
+PROC winner(Board board, INT color)
+  INITIAL BOOL run IS TRUE:
+  INITIAL INT i IS 0:
+  INITIAL BOOL dead IS FALSE:
+  SEQ
+    color := (-1)
+    no.pawns.left(board[players][0], dead)
+    IF
+      dead
+        SEQ
+          run := FALSE
+          color := 1
+      TRUE
+        SEQ
+          no.pawns.left(board[players][1], dead)
+          IF
+            dead
+              SEQ
+                run := FALSE
+                color := 0
+            TRUE
+              SKIP
+    WHILE run AND (i<8)
+      SEQ
+        IF
+          board[players][0][pawns][i][y] = 7
+            SEQ
+              color := 0
+              run := FALSE
+          board[players][1][pawns][i][y] = 0
+            SEQ
+              color := 1
+              run := FALSE
+          TRUE
+            i := i + 1
+:
+
+-- The evaluation function, central for the game play
+-- Note that this function can become very elaborate
+PROC board.evaluate(Board board, INT color, val)
+  INT other:   -- the other color
+  INT tmp1:
+  SEQ
+    CASE color
+      0
+        other := 1
+      1
+        other := 0
+    winner(board, tmp1) -- Do we have a winning move?
+    IF
+      tmp1 = color
+        val := 2
+      tmp1 = other
+        val := -2
+      TRUE -- No win, amount of players is the best measure
+        SEQ
+          tmp1 := board[players][color][len] - board[players][other][len]
+          IF
+            tmp1 > 0
+              val := 1
+            tmp1 < 0
+              val := -1
+            TRUE
+              val := 0
+:--1}}}
+
+--{{{1 minimax network components
+PROC node(CHAN PBOARD board.in?, board.out!, CHAN INT eval.in?, eval.out!)
+  Board board:
+  INT player, nextplayer, eval, alpha, beta:
+  [maxbranch]Board boards: -- The highest and very unlikely max amount of next moves
+  INT idx:
+  BOOL dontcut:
+  INITIAL BOOL run IS TRUE:
+  WHILE run
+    board.in ? CASE
+      POISON
+        SEQ
+          run := FALSE
+          board.out ! POISON
+      BOARD; board; player; alpha; beta
+        SEQ
+          idx := 0
+          dontcut := TRUE
+          CASE player
+            0
+              SEQ
+                nextplayer := 1
+            1
+              SEQ
+                nextplayer := 0
+          -- For now we generate all possible next moves.
+          -- This should be done by a separate process and only on request
+          board.moves(board, player, boards)
+          WHILE boards[idx][ok] AND dontcut
+            SEQ
+              board := boards[idx]
+              board.out ! BOARD; board; nextplayer; -beta; -alpha
+              eval.in ? eval
+              eval := -eval
+              IF -- Max
+                eval > alpha
+                  alpha := eval
+                TRUE
+                  SKIP
+              IF
+                alpha >= beta
+                  dontcut := FALSE
+                TRUE
+                  SKIP
+              idx := idx + 1   
+          -- Eventually we arrive here, with or without cutoff
+          eval.out ! alpha
+:
+
+PROC leaf(CHAN PBOARD board.in?, CHAN INT val!)
+  Board board:
+  INT player:
+  INT var1:
+  INT var2:
+  INITIAL BOOL run IS TRUE:
+  WHILE run
+    SEQ
+      board.in ? CASE
+        POISON
+          run := FALSE
+        BOARD; board; player; var1; var2
+          SEQ
+            board.evaluate(board, player, var1)
+            val ! var1
+:
+
+PROC branch(CHAN PBOARD in?, CHAN INT eval!)
+  [depth]CHAN PBOARD req:
+  [depth]CHAN INT rsp:
+  Board board:
+  INITIAL BOOL run IS TRUE:
+  INT player, alpha, beta, val:
+  PAR
+    PAR i = 0 FOR depth-1
+      node(req[i]?, req[i+1]!, rsp[i+1]?, rsp[i]!)
+    leaf(req[depth-1]?, rsp[depth-1]!)
+    WHILE run
+      in ? CASE
+        POISON
+          SEQ
+            req[0] ! POISON
+            run := FALSE
+        BOARD; board; player; alpha; beta
+          SEQ
+            req[0] ! BOARD; board; player; alpha; beta
+            rsp[0] ? val
+            eval ! val
+:-- 1}}}
+
+--{{{1
+PROC directory(CHAN PBOARD in?, CHAN PBOARD out!)
+  [maxbranch]CHAN PBOARD dir.board:
+  [maxbranch]CHAN INT    dir.val:
+  [maxbranch]Board boards:
+  [maxbranch]INT values:
+  [maxbranch]INT picks:
+
+  INT pick.count:
+
+  Board board:
+  INT player, alpha, beta, count, best, idxbest:
+  INITIAL BOOL run IS TRUE:
+  
+  PAR
+    PAR i = 0 FOR maxbranch
+      branch(dir.board[i]?, dir.val[i]!)
+    WHILE run    
+      in ? CASE
+        POISON
+          SEQ
+            PAR i = 0 FOR maxbranch
+              dir.board[i] ! POISON
+            run := FALSE
+        BOARD; board; player; alpha; beta
+          SEQ
+            board.moves(board, player, boards)
+            count := 0
+            WHILE boards[count][ok]
+              count := count + 1
+            PAR i = 0 FOR count
+              PAR
+                dir.board[i] ! BOARD; boards[i]; player; alpha; beta
+                dir.val[i] ? values[i]
+            --Find index of the best evaluation
+            best := values[0]
+            SEQ i = 1 FOR count-1
+              IF
+                ((player=1) AND (values[i] > best)) OR ((player=0) AND (values[i] < best))
+                  SEQ
+                    best := values[i]
+                    idxbest := i
+                TRUE
+                  SKIP
+            IF -- Randomly pick among boards of value best
+              randomly.pick
+                SEQ
+                  pick.count := 0
+                  SEQ i = 0 FOR count
+                    IF
+                      values[i] = best
+                        SEQ
+                          picks[pick.count] := i
+                          pick.count := pick.count + 1
+                          --pick.count := 2
+                      TRUE
+                        SKIP
+                  IF
+                    pick.count > 1
+                      rand(pick.count, idxbest)
+                    TRUE
+                      SKIP
+              TRUE
+                SKIP
+            out ! BOARD; boards[idxbest]; player; alpha; beta
+:
+
+PROC main.dir(CHAN BYTE kyb?, scr!)
+  Board board:
+  INT player, alpha, beta, val:
+  INITIAL INT min IS -10000:
+  INITIAL INT max IS  10000:
+  INITIAL BOOL run IS TRUE:
+  CHAN PBOARD in:
+  CHAN PBOARD out:
+  SEQ
+    player := 0
+    board := board.new()
+    alpha  := min
+    beta   := max
+    PAR
+      directory(in?, out!)
+      SEQ
+        WHILE run
+          SEQ
+            CASE player
+              0
+                SEQ
+                  player := 1
+              1
+                SEQ
+                  player := 0
+            in ! BOARD; board; player; alpha; beta
+            bubblesort(board[players][0][pawns], 8)
+            bubblesort(board[players][1][pawns], 8)
+            out ? CASE BOARD; board; val; val; val
+
+            board.evaluate(board, player, val)
+            board[val] := val
+            board.show(board, scr!)
+            winner(board, val)
+            CASE val
+              (-1)
+                SKIP
+              ELSE
+                SEQ
+                  out.string("The winner is: Player ", 0, scr!)
+                  out.int(val, 0, scr!)
+                  out.string("!*n", 0, scr!)
+                  in ! POISON
+                  run := FALSE
+:--1}}}

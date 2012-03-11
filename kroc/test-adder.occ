@@ -1,0 +1,58 @@
+
+#INCLUDE "test-utils.occ"
+
+VAL BITS IS 4:
+
+PROC show.bits([]CHAN BOOL in?, CHAN BYTE scr!)
+  BOOL b:
+  SEQ i = 0 FOR BITS
+    SEQ
+      in[i] ? b
+      out.bit(b, scr)
+:
+
+PROC diode.array([]CHAN BOOL in?, CHAN BYTE scr!)
+  [2*BITS]BOOL b:
+  SEQ
+    PAR i = 0 FOR BITS
+      in[i] ? b[i]
+    SEQ i = 0 FOR BITS
+      SEQ
+        CASE b[i]
+          TRUE
+            scr ! '1'
+          FALSE
+            scr ! '0'
+          ELSE
+            SKIP
+:
+
+PROC test.adder(CHAN BYTE kyb?, scr!)
+  INITIAL INT n0 IS (2*BITS):
+  INITIAL INT n1 IS BITS:
+  [BITS]CHAN BOOL a, b, sum:
+  [BITS]BYTE arrayA, arrayB:
+  CHAN BOOL cin, cout:
+  BOOL bsum:
+  PAR
+    ripple.carry.adder(a?, b?, sum!, cin?, cout!)
+    SEQ
+      get.input.array(n1, kyb?, arrayA)
+      get.input.array(n1, kyb?, arrayB)
+      show.boolarray(n1, arrayA, a)
+      show.boolarray(n1, arrayB, b)
+      cin ! FALSE
+      diode.array(sum, scr!)
+      cout ? bsum
+:
+
+PROC main.test.adder(CHAN BYTE kyb?, scr!)
+  INITIAL INT n IS 256: -- A cheat: There are 256 possible input combinations
+  WHILE n > 0
+    SEQ
+      n := n - 1
+      test.adder(kyb?, scr!)
+      out.string("*n", 0, scr!)
+      scr ! FLUSH
+:
+

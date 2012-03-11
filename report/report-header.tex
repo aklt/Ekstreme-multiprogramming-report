@@ -1,0 +1,171 @@
+\documentclass[a4paper,10pt]{article}
+\bibliographystyle{alpha} 
+
+% -------------------  Caption font size -------------------------
+% from: http://dcwww.camp.dtu.dk/~schiotz/comp/LatexTips/LatexTips.html#captfont
+% Different font in captions
+\newcommand{\captionfonts}{\footnotesize}
+
+\makeatletter  % Allow the use of @ in command names
+\long\def\@makecaption#1#2{%
+  \vskip\abovecaptionskip
+  \sbox\@tempboxa{{\captionfonts #1: #2}}%
+  \ifdim \wd\@tempboxa >\hsize
+    {\captionfonts #1: #2\par}
+  \else
+    \hbox to\hsize{\hfil\box\@tempboxa\hfil}%
+  \fi
+  \vskip\belowcaptionskip}
+\makeatother   % Cancel the effect of \makeatletter
+
+% --------------------- Font sizes --------------------------
+% \tiny tiny\\
+% \scriptsize scriptsize\\
+% \footnotesize footnotesize\\
+% \small small\\
+% \normalsize normalsize\\
+% \large large\\
+% \Large Large\\
+% \LARGE LARGE\\
+% \huge huge\\
+% \Huge Huge
+
+
+%----------------- document settings -------------------------
+%\pdfpagewidth 8.5in            % Height and width of the PDF page to create (i.e. size of paper you'd print on).
+%\pdfpageheight 11in
+\setlength\topmargin{1in}      % Margin at top of page above all printing. 
+							   % % Add 1 inch (so that, for example, setting 
+							   % % \topmargin to 0.25in would produce a top margin of 1.25 inches).
+%\setlength\headheight{0in}     % Height of the header (the header is text that appears atop all pages).
+% \setlength\headsep{0in}        % Distance from bottom of header to the body of text on a page.
+% \setlength\textheight{7.7in}   % Height and width of main text box.
+% \setlength\textwidth{6.5in}
+%\setlength\oddsidemargin{0in}  % Left margin on odd numbered pages. Add 1 inch (as with \topmargin).
+%\setlength\evensidemargin{0in} % Left margin on even numbered pages. Add 1 inch (as with \topmargin).
+\setlength\parindent{0pt}   % Amount of indentation at the first line of a paragraph.
+\setlength\parskip{10pt}     % Distance between paragraphs.
+% \setlength\footskip{0.1in}     % Distance from bottom of body to the bottom of the footer (the footer is the text at the bottom of each page).
+% \setlength\topskip{0.1in}      % Distance from top of main text box to the baseline of the first line of text in the main text box.
+
+
+
+% -------------------  Use a language: danish or englis -------------------------
+% \usepackage[danish]{babel} % 
+
+% -------------------  Choose an input encoding -------------------------
+\usepackage[latin1]{inputenc}
+% \usepackage[utf8x]{inputenc} 
+
+% -------------------  The \url{} command  -------------------------
+\usepackage{url}
+
+% ----------------- Fancy headers -------------------------
+\usepackage{fancyhdr}
+%\fancyhf{}                              % clear headers so we can define our own
+% http://en.wikibooks.org/wiki/LaTeX/Page_Layout
+% 
+% selectors ]{output you want}
+% The selectors are the following:
+% E 	even page
+% O 	odd page
+% L 	left side
+% C 	centered
+% R 	right size
+
+% so CE will refer to the center of the even pages and RO to the right side of
+% the odd pages. Whether it is header or footer, depends if you are using
+% \fancyhead or \fancyfoot. You can use multiple selectors separated by a comma.
+
+%\renewcommand{\subsectionmark}[1]{\markboth{\textbf{\thesubsection}.\ \emph{#1}}{}}
+%\renewcommand{\sectionmark}[1]{\markright{\thesection\ \boldmath\textbf{#1}\unboldmath}}
+ 
+%\renewcommand{\headrulewidth}{0.1pt}      %Underlines the header. (Set to 0pt if not required).
+%\renewcommand{\footrulewidth}{0pt}      %Underlines the footer. (Set to 0pt if not required).
+
+
+%\fancyfoot[RO,RE]{\thepage}
+%\fancyhead[RO,RE]{\subsectionmark}
+%\fancyhead[LO,LE]{\sectionmark}
+%\lhead{\sectionmark}
+%\rhead{\subsectionmark}
+% \rhead{Right top}
+% \lfoot{This is the footer}
+%\cfoot{\thepage}
+%\rfoot{\thepage}
+
+% style 1 --------------
+\pagestyle{fancy}                         %Forces the page to use the fancy template
+%\renewcommand{\sectionmark}[1]{\markboth{\textbf{\thesection}.\ \emph{#1}}{}}
+\renewcommand{\sectionmark}[1]{\markboth{\emph{#1}}{}} % set \leftmark to just the section text
+\renewcommand{\subsectionmark}[1]{\markright{\thesubsection\ \boldmath\textbf{#1}\unboldmath}}
+                                          %The text used in the header is determined by the arguments to the \markboth
+                                          % and \markright commands used here. The chapter information will appear as the
+                                          % chapter number in bold, followed by a dot and a space, followed by the chapter
+                                          % title (dealt with by LaTeX---no user intervention needed here) in italics. The
+                                          % section information will appear as the section number, followed by a space, and
+                                          % then the section title (again generated automatically) in bold. Any maths in
+                                          % the section title will also appear in bold (provided the bold font exists).
+\fancyhf{}                                %Clears all header and footer fields, in preparation.
+%\fancyhead[RO]{\textbf{\thepage}}      %Displays the page number in bold in the header,
+%\fancyhead[LO]{\textbf{\leftmark}}      %Displays the page number in bold in the header,
+                                          % to the left on even pages and to the right on odd pages.
+%\fancyhead[RE]{\nouppercase{\leftmark}}   %Displays the upper-level (chapter) information---
+                                          % as determined above---in non-upper case in the header, to the right on even pages.
+%\fancyhead[LO]{\rightmark}                %Displays the lower-level (section) information---as
+%\fancyhead[RE]{\leftmark}                %Displays the lower-level (section) information---as
+                                          % determined above---in the header, to the left on odd pages.
+\renewcommand{\headrulewidth}{0.5pt}      %Underlines the header. (Set to 0pt if not required).
+\renewcommand{\footrulewidth}{0pt}      %Underlines the footer. (Set to 0pt if not required).
+
+
+% ---------------- Graphics ------------------------
+\usepackage{graphicx}
+
+% ---------------- Listings ------------------------
+\usepackage{listings}
+% http://en.wikibooks.org/wiki/LaTeX/Packages/Listings
+% Definition for typesetting occam(-pi) source code
+\lstdefinelanguage{occam}
+{
+  keywords={
+    PROTOCOL,PROC,PAR,SEQ,WHILE,BOOL,
+    ALT,CASE,CHAN,MOBILE,FOR,
+    INITIAL,VAL,INT,BYTE,
+    RESULT,INLINE,\#PRAGMA,EXTERNAL,
+    USE,\#INCLUDE,REAL32,INT16,
+    INT32,DATA,TYPE,PRI,PACKED,
+    RECORD,\#USE,IS,RETYPES},
+  sensitive=true,
+  comment=[l]{--},
+  alsoletter={\#},
+  alsodigit={.}, 
+  string=[b]",
+}
+
+% TODO : How to get the coloring right?
+\lstset{%
+    language=occam,
+	basicstyle=\scriptsize,       % the size of the fonts that are used for the code
+	showstringspaces=false,         % underline spaces within strings
+	numbers=left,                   % where to put the line-numbers
+	numberstyle=\scriptsize,      % the size of the fonts that are used for the line-numbers
+	keywordstyle=\bfseries,       % \bfseries\underline
+	%stepnumber=2,                   % the step between two line-numbers. If it's 1 each line will be numbered
+	numbersep=10pt,                  % how far the line-numbers are from the code
+	%backgroundcolor=\color{white},  % choose the background color
+	showspaces=false,               % show spaces within strings adding particular underscores
+	showtabs=false,                 % show tabs within strings adding particular underscores
+	%escapeinside={\%*}{*)}          % if you want to add a comment within your code
+}
+
+
+
+
+% ------------------- Document specific stuff ----------------
+\author{Anders Thøgersen}
+\title{Pawn chess and Digital logic simulation: occam implementations}
+\begin{document}
+
+\maketitle
+
